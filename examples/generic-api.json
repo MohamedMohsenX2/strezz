@@ -1,0 +1,435 @@
+{
+  "target": {
+    "url": "https://api.example.com",
+    "baseURL": "https://api.example.com",
+    "framework": "generic"
+  },
+  "scenarios": [
+    {
+      "name": "smoke",
+      "executor": "constant-vus",
+      "vus": 1,
+      "duration": "30s",
+      "description": "Basic functionality verification"
+    },
+    {
+      "name": "load",
+      "executor": "ramping-vus",
+      "stages": [
+        { "duration": "2m", "target": 20 },
+        { "duration": "5m", "target": 20 },
+        { "duration": "2m", "target": 0 }
+      ],
+      "description": "Load testing with moderate concurrency"
+    },
+    {
+      "name": "soak",
+      "executor": "constant-vus",
+      "vus": 10,
+      "duration": "30m",
+      "description": "Long-running soak test"
+    }
+  ],
+  "auth": {
+    "type": "jwt",
+    "endpoints": {
+      "login": "/auth/login",
+      "logout": "/auth/logout",
+      "refresh": "/auth/refresh",
+      "register": "/auth/register"
+    },
+    "credentials": {
+      "username": "test@example.com",
+      "password": "testpass123"
+    }
+  },
+  "requests": [
+    {
+      "name": "Health Check",
+      "method": "GET",
+      "path": "/health",
+      "description": "API health status check",
+      "checks": [
+        "status is 200",
+        "response time < 100ms",
+        "contains status: healthy"
+      ]
+    },
+    {
+      "name": "API Documentation",
+      "method": "GET",
+      "path": "/docs",
+      "description": "Load API documentation",
+      "checks": [
+        "status is 200",
+        "response time < 500ms",
+        "contains API endpoints"
+      ]
+    },
+    {
+      "name": "User Registration",
+      "method": "POST",
+      "path": "/auth/register",
+      "description": "Register new user account",
+      "body": {
+        "email": "newuser@example.com",
+        "password": "newpass123",
+        "first_name": "John",
+        "last_name": "Doe",
+        "company": "Example Corp",
+        "phone": "+1-555-123-4567"
+      },
+      "checks": [
+        "status is 201",
+        "response time < 1000ms",
+        "user created successfully",
+        "has user ID"
+      ]
+    },
+    {
+      "name": "User Login",
+      "method": "POST",
+      "path": "/auth/login",
+      "description": "Authenticate user and get tokens",
+      "body": {
+        "email": "test@example.com",
+        "password": "testpass123",
+        "remember_me": true
+      },
+      "checks": [
+        "status is 200",
+        "response time < 800ms",
+        "login successful",
+        "has access token",
+        "has refresh token"
+      ]
+    },
+    {
+      "name": "Refresh Token",
+      "method": "POST",
+      "path": "/auth/refresh",
+      "description": "Refresh access token",
+      "body": {
+        "refresh_token": "{{refreshToken}}"
+      },
+      "checks": [
+        "status is 200",
+        "response time < 600ms",
+        "new access token received"
+      ]
+    },
+    {
+      "name": "Get User Profile",
+      "method": "GET",
+      "path": "/users/profile",
+      "description": "Fetch authenticated user profile",
+      "checks": [
+        "status is 200",
+        "response time < 400ms",
+        "contains user data",
+        "has profile completeness"
+      ]
+    },
+    {
+      "name": "Update User Profile",
+      "method": "PUT",
+      "path": "/users/profile",
+      "description": "Update user profile information",
+      "body": {
+        "first_name": "John",
+        "last_name": "Smith",
+        "bio": "Updated bio information",
+        "preferences": {
+          "theme": "dark",
+          "notifications": true,
+          "language": "en"
+        }
+      },
+      "checks": [
+        "status is 200",
+        "response time < 600ms",
+        "profile updated",
+        "changes reflected"
+      ]
+    },
+    {
+      "name": "Change Password",
+      "method": "PUT",
+      "path": "/users/password",
+      "description": "Change user password",
+      "body": {
+        "current_password": "testpass123",
+        "new_password": "newpass456",
+        "confirm_password": "newpass456"
+      },
+      "checks": [
+        "status is 200",
+        "response time < 800ms",
+        "password changed"
+      ]
+    },
+    {
+      "name": "List Projects",
+      "method": "GET",
+      "path": "/projects",
+      "description": "Fetch paginated project list",
+      "query": {
+        "page": "1",
+        "per_page": "25",
+        "status": "active",
+        "sort": "created_at",
+        "order": "desc"
+      },
+      "checks": [
+        "status is 200",
+        "response time < 600ms",
+        "contains projects",
+        "has pagination metadata",
+        "projects sorted correctly"
+      ]
+    },
+    {
+      "name": "Search Projects",
+      "method": "GET",
+      "path": "/projects/search",
+      "description": "Search projects with complex filters",
+      "query": {
+        "q": "web application",
+        "category": "development",
+        "technologies": ["nodejs", "react"],
+        "budget_min": 10000,
+        "budget_max": 100000,
+        "deadline_from": "2024-01-01",
+        "deadline_to": "2024-12-31"
+      },
+      "checks": [
+        "status is 200",
+        "response time < 1000ms",
+        "search results relevant",
+        "filters applied correctly"
+      ]
+    },
+    {
+      "name": "Create Project",
+      "method": "POST",
+      "path": "/projects",
+      "description": "Create new project",
+      "body": {
+        "name": "Test Project",
+        "description": "A test project for performance testing",
+        "category": "development",
+        "technologies": ["nodejs", "postgresql", "redis"],
+        "budget": 50000,
+        "deadline": "2024-06-30",
+        "team_size": 5,
+        "requirements": [
+          "User authentication",
+          "API endpoints",
+          "Database design",
+          "Frontend interface"
+        ]
+      },
+      "checks": [
+        "status is 201",
+        "response time < 1500ms",
+        "project created",
+        "has project ID",
+        "all fields saved"
+      ]
+    },
+    {
+      "name": "Update Project",
+      "method": "PUT",
+      "path": "/projects/1",
+      "description": "Update existing project",
+      "body": {
+        "name": "Updated Test Project",
+        "description": "Updated project description",
+        "budget": 75000,
+        "deadline": "2024-08-31",
+        "status": "in_progress"
+      },
+      "checks": [
+        "status is 200",
+        "response time < 1000ms",
+        "project updated",
+        "changes reflected"
+      ]
+    },
+    {
+      "name": "Delete Project",
+      "method": "DELETE",
+      "path": "/projects/1",
+      "description": "Delete project (soft delete)",
+      "checks": [
+        "status is 204",
+        "response time < 500ms"
+      ]
+    },
+    {
+      "name": "Project Analytics",
+      "method": "GET",
+      "path": "/projects/1/analytics",
+      "description": "Get project performance analytics",
+      "query": {
+        "period": "monthly",
+        "metrics": ["progress", "budget", "timeline"]
+      },
+      "checks": [
+        "status is 200",
+        "response time < 800ms",
+        "contains analytics data",
+        "has progress metrics"
+      ]
+    },
+    {
+      "name": "Upload File",
+      "method": "POST",
+      "path": "/files/upload",
+      "description": "Upload project file",
+      "body": {
+        "file": "project-spec.pdf",
+        "project_id": 1,
+        "category": "documentation",
+        "description": "Project specification document"
+      },
+      "checks": [
+        "status is 201",
+        "response time < 3000ms",
+        "file uploaded",
+        "has file ID",
+        "metadata saved"
+      ]
+    },
+    {
+      "name": "Download File",
+      "method": "GET",
+      "path": "/files/1/download",
+      "description": "Download project file",
+      "checks": [
+        "status is 200",
+        "response time < 1000ms",
+        "file content received",
+        "correct content type"
+      ]
+    },
+    {
+      "name": "Create Task",
+      "method": "POST",
+      "path": "/projects/1/tasks",
+      "description": "Create task within project",
+      "body": {
+        "title": "Implement API endpoints",
+        "description": "Create REST API endpoints for user management",
+        "assignee_id": 2,
+        "priority": "high",
+        "estimated_hours": 16,
+        "dependencies": [1, 3]
+      },
+      "checks": [
+        "status is 201",
+        "response time < 800ms",
+        "task created",
+        "has task ID",
+        "assignee set"
+      ]
+    },
+    {
+      "name": "Update Task Status",
+      "method": "PATCH",
+      "path": "/tasks/1/status",
+      "description": "Update task completion status",
+      "body": {
+        "status": "in_progress",
+        "progress": 50,
+        "notes": "API endpoints partially implemented"
+      },
+      "checks": [
+        "status is 200",
+        "response time < 500ms",
+        "status updated",
+        "progress recorded"
+      ]
+    },
+    {
+      "name": "Get Notifications",
+      "method": "GET",
+      "path": "/notifications",
+      "description": "Fetch user notifications",
+      "query": {
+        "page": "1",
+        "per_page": "20",
+        "unread_only": true
+      },
+      "checks": [
+        "status is 200",
+        "response time < 400ms",
+        "contains notifications",
+        "unread count accurate"
+      ]
+    },
+    {
+      "name": "Mark Notification Read",
+      "method": "PUT",
+      "path": "/notifications/1/read",
+      "description": "Mark notification as read",
+      "checks": [
+        "status is 200",
+        "response time < 300ms",
+        "notification marked read"
+      ]
+    },
+    {
+      "name": "Get System Status",
+      "method": "GET",
+      "path": "/system/status",
+      "description": "Check system health and performance",
+      "checks": [
+        "status is 200",
+        "response time < 200ms",
+        "contains system metrics",
+        "has uptime info"
+      ]
+    },
+    {
+      "name": "Get API Metrics",
+      "method": "GET",
+      "path": "/system/metrics",
+      "description": "Fetch API performance metrics",
+      "query": {
+        "period": "24h",
+        "endpoint": "/projects"
+      },
+      "checks": [
+        "status is 200",
+        "response time < 300ms",
+        "contains performance data",
+        "has response time stats"
+      ]
+    }
+  ],
+  "thresholds": {
+    "http_req_duration": ["p(95)<800", "p(99)<1500"],
+    "http_req_failed": ["rate<0.5%"],
+    "http_req_rate": ["rate>120"],
+    "custom_metrics": {
+      "auth_operations": ["p(95)<600"],
+      "project_operations": ["p(95)<1000"],
+      "file_operations": ["p(95)<3000"]
+    }
+  },
+  "tags": {
+    "environment": "production",
+    "service": "api",
+    "team": "backend"
+  },
+  "output": {
+    "format": "json",
+    "file": "generic-api-results.json"
+  },
+  "observability": {
+    "metrics": ["http_req_duration", "http_req_failed", "custom"],
+    "logging": true,
+    "tracing": true
+  }
+}

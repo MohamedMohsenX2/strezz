@@ -1,0 +1,111 @@
+name: Smoke Test
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  smoke-test:
+    name: Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Build application
+      run: npm run build
+      
+    - name: Install k6
+      run: |
+        sudo gpg -k
+        sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+        echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+        sudo apt-get update
+        sudo apt-get install k6
+        
+    - name: Generate smoke test
+      run: |
+        node dist/strezz.js \
+          --config examples/minimal-working.json \
+          --backend k6 \
+          --output smoke-test.js
+          
+    - name: Run smoke test
+      run: |
+        k6 run \
+          --out json=smoke-results.json \
+          --out text=smoke-results.txt \
+          smoke-test.js
+          
+    - name: Check smoke test results
+      id: check-smoke
+      run: |
+        if [ -f "smoke-results.json" ]; then
+          # Extract key metrics
+          P95_RESPONSE=$(jq -r '.metrics.http_req_duration.values.p95 // "N/A"' smoke-results.json)
+          ERROR_RATE=$(jq -r '.metrics.http_req_failed.values.rate // "N/A"' smoke-results.json)
+          
+          echo "Smoke test results:"
+          echo "P95 Response Time: ${P95_RESPONSE}ms"
+          echo "Error Rate: ${ERROR_RATE}%"
+          
+          # Check basic thresholds (very lenient for smoke tests)
+          if [ "$P95_RESPONSE" != "N/A" ] && [ "$P95_RESPONSE" -gt "5000" ]; then
+            echo "::set-output name=smoke_failed::true"
+            echo "❌ P95 response time ${P95_RESPONSE}ms exceeds smoke test threshold 5000ms"
+          elif [ "$ERROR_RATE" != "N/A" ] && [ "$ERROR_RATE" -gt "5" ]; then
+            echo "::set-output name=smoke_failed::true"
+            echo "❌ Error rate ${ERROR_RATE}% exceeds smoke test threshold 5%"
+          else
+            echo "::set-output name=smoke_failed::false"
+            echo "✅ Smoke test passed"
+          fi
+        else
+          echo "::set-output name=smoke_failed::true"
+          echo "❌ No smoke test results found"
+        fi
+        
+    - name: Upload smoke test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: smoke-test-results
+        path: |
+          smoke-results.json
+          smoke-results.txt
+          smoke-test.js
+          
+    - name: Smoke Test Failed
+      if: steps.check-smoke.outputs.smoke_failed == 'true'
+      run: |
+        echo "🚨 SMOKE TEST FAILED 🚨"
+        echo ""
+        echo "Basic performance validation failed. This may indicate:"
+        echo "- Severe performance issues"
+        echo "- Configuration problems"
+        echo "- Environment issues"
+        echo ""
+        echo "Please investigate before proceeding with full performance tests."
+        
+    - name: Smoke Test Passed
+      if: steps.check-smoke.outputs.smoke_failed == 'false'
+      run: |
+        echo "✅ SMOKE TEST PASSED ✅"
+        echo ""
+        echo "Basic performance validation successful."
+        echo "Ready for more comprehensive performance testing."

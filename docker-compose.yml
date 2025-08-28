@@ -1,12 +1,182 @@
-version: "3"
+version: '3.8'
+
 services:
-    strezz:
-      env_file:
-      - .env  
-      build:
-        args:
-            url: "${url}"
-        context: .
-      ports:
-        - 4000:4000
+  # Strezz Performance Test Generator - k6 Backend
+  strezz-k6:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: k6-runner
+    image: strezz:k6
+    container_name: strezz-k6
+    working_dir: /app
+    volumes:
+      - ./examples:/app/examples:ro
+      - ./output:/app/output
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "node", "--version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    command: ["node", "dist/strezz.js", "--help"]
+    profiles:
+      - k6
+
+  # Strezz Performance Test Generator - Locust Backend
+  strezz-locust:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: locust-runner
+    image: strezz:locust
+    container_name: strezz-locust
+    working_dir: /app
+    volumes:
+      - ./examples:/app/examples:ro
+      - ./output:/app/output
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "node", "--version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    command: ["node", "dist/strezz.js", "--help"]
+    profiles:
+      - locust
+
+  # Strezz Performance Test Generator - Multi Backend
+  strezz-multi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: multi-runner
+    image: strezz:multi
+    container_name: strezz-multi
+    working_dir: /app
+    volumes:
+      - ./examples:/app/examples:ro
+      - ./output:/app/output
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "node", "--version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    command: ["node", "dist/strezz.js", "--help"]
+    profiles:
+      - multi
+
+  # InfluxDB for metrics storage (optional)
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: strezz-influxdb
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=strezz123
+      - DOCKER_INFLUXDB_INIT_ORG=strezz
+      - DOCKER_INFLUXDB_INIT_BUCKET=k6
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=strezz-admin-token
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+      - influxdb-config:/etc/influxdb2
+    ports:
+      - "8086:8086"
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles:
+      - monitoring
+
+  # Grafana for metrics visualization (optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: strezz-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=strezz123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles:
+      - monitoring
+
+  # Example: Generate and run k6 test
+  example-k6:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: k6-runner
+    image: strezz:k6
+    container_name: strezz-example-k6
+    working_dir: /app
+    volumes:
+      - ./examples:/app/examples:ro
+      - ./output:/app/output
+    environment:
+      - NODE_ENV=production
+    command: >
+      sh -c "
+        node dist/strezz.js --config examples/laravel-ecommerce.json --backend k6 --output /app/output/laravel-test.js &&
+        k6 run --out json=/app/output/results.json /app/output/laravel-test.js
+      "
+    profiles:
+      - examples
+
+  # Example: Generate and run Locust test
+  example-locust:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: locust-runner
+    image: strezz:locust
+    container_name: strezz-example-locust
+    working_dir: /app
+    volumes:
+      - ./examples:/app/examples:ro
+      - ./output:/app/output
+    environment:
+      - NODE_ENV=production
+    command: >
+      sh -c "
+        node dist/strezz.js --config examples/yii-cms.json --backend locust --output /app/output/yii-test.py &&
+        locust -f /app/output/yii-test.py --host=https://httpbin.org --users 5 --spawn-rate 1 --run-time 30s --headless
+      "
+    profiles:
+      - examples
+
+volumes:
+  influxdb-data:
+    driver: local
+  influxdb-config:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  default:
+    name: strezz-network
      

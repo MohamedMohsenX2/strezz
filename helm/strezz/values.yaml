@@ -1,0 +1,804 @@
+# Default values for Strezz Performance Test Generator
+# This is a YAML-formatted file.
+
+# Global configuration
+global:
+  environment: production
+  clusterDomain: cluster.local
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+  nameOverride: ""
+  fullnameOverride: ""
+
+# Strezz application configuration
+strezz:
+  # Application settings
+  enabled: true
+  replicaCount: 2
+  
+  # Image configuration
+  image:
+    repository: strezz
+    tag: "2.0.0"
+    pullPolicy: IfNotPresent
+    
+  # Image pull secrets
+  imagePullSecrets: []
+  
+  # Service account
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+    
+  # Pod security context
+  podSecurityContext:
+    fsGroup: 1001
+    runAsNonRoot: true
+    runAsUser: 1001
+    
+  # Container security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1001
+    capabilities:
+      drop:
+        - ALL
+        
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 3000
+    targetPort: 3000
+    
+  # Ingress configuration
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    hosts:
+      - host: strezz.company.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: strezz-tls
+        hosts:
+          - strezz.company.com
+          
+  # Resources
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+      
+  # Liveness probe
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    
+  # Readiness probe
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 3000
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+    
+  # Startup probe
+  startupProbe:
+    httpGet:
+      path: /health
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+    
+  # Environment variables
+  env:
+    - name: NODE_ENV
+      value: "production"
+    - name: LOG_LEVEL
+      value: "warn"
+    - name: METRICS_ENABLED
+      value: "true"
+    - name: HEALTH_CHECK_ENABLED
+      value: "true"
+      
+  # Environment variables from secrets
+  envFromSecret: []
+  
+  # Environment variables from config maps
+  envFromConfigMap: []
+  
+  # Volume mounts
+  volumeMounts:
+    - name: config
+      mountPath: /app/config
+      readOnly: true
+    - name: output
+      mountPath: /app/output
+    - name: logs
+      mountPath: /app/logs
+      
+  # Volumes
+  volumes:
+    - name: config
+      configMap:
+        name: strezz-config
+    - name: output
+      persistentVolumeClaim:
+        claimName: strezz-output-pvc
+    - name: logs
+      persistentVolumeClaim:
+        claimName: strezz-logs-pvc
+        
+  # ConfigMap configuration
+  configMap:
+    enabled: true
+    name: strezz-config
+    data: {}
+    
+  # Persistent volume claims
+  persistentVolumeClaims:
+    output:
+      enabled: true
+      size: 10Gi
+      accessMode: ReadWriteMany
+      storageClass: ""
+    logs:
+      enabled: true
+      size: 5Gi
+      accessMode: ReadWriteMany
+      storageClass: ""
+
+# k6 runner configuration
+k6Runner:
+  enabled: true
+  replicaCount: 3
+  
+  image:
+    repository: strezz
+    tag: "2.0.0-k6"
+    pullPolicy: IfNotPresent
+    
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+      
+  # k6 specific configuration
+  k6:
+    maxVUs: 1000
+    maxDuration: "1h"
+    outputFormat: "influxdb"
+    
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 6565
+    targetPort: 6565
+    
+  # Environment variables
+  env:
+    - name: K6_OUT
+      value: "influxdb=http://influxdb:8086/k6"
+    - name: K6_MAX_VUS
+      value: "1000"
+    - name: K6_MAX_DURATION
+      value: "1h"
+
+# Locust runner configuration
+locustRunner:
+  enabled: false  # Disabled by default, use k6
+  replicaCount: 2
+  
+  image:
+    repository: strezz
+    tag: "2.0.0-locust"
+    pullPolicy: IfNotPresent
+    
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+      
+  # Locust specific configuration
+  locust:
+    maxUsers: 500
+    spawnRate: 10
+    runTime: "30m"
+    
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 8089
+    targetPort: 8089
+    
+  # Web interface
+  web:
+    enabled: true
+    port: 8089
+    ingress:
+      enabled: true
+      className: nginx
+      hosts:
+        - host: locust.company.com
+          paths:
+            - path: /
+              pathType: Prefix
+
+# PostgreSQL configuration
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "strezz123"
+    database: "strezz_production"
+    username: "strezz"
+    password: "strezz123"
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: ""
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+# InfluxDB configuration
+influxdb:
+  enabled: true
+  auth:
+    enabled: true
+    adminUser:
+      token: "strezz-admin-token"
+      password: "strezz123"
+    adminToken: "strezz-admin-token"
+    token: "strezz-admin-token"
+  persistence:
+    enabled: true
+    size: 50Gi
+    storageClass: ""
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  config:
+    reporting-disabled: true
+    http:
+      auth-enabled: true
+      log-enabled: true
+      write-tracing: false
+      pprof-enabled: false
+      https-enabled: false
+      bind-address: ":8086"
+    data:
+      dir: "/var/lib/influxdb2"
+      wal-dir: "/var/lib/influxdb2/wal"
+      series-id-set-cache-size: 100
+    coordinator:
+      write-timeout: "10s"
+      max-concurrent-compactions: 0
+      max-enqueued-writes: 0
+      max-series-per-database: 1000000
+      max-values-per-tag: 100000
+    retention:
+      enabled: true
+      check-interval: "30m"
+    shard-precreation:
+      enabled: true
+      check-interval: "10m"
+      advance-period: "30m"
+    monitor:
+      store-enabled: false
+      store-database: "_monitoring"
+      store-retention: "168h"
+
+# Grafana configuration
+grafana:
+  enabled: true
+  adminPassword: "strezz123"
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""
+  ingress:
+    enabled: true
+    className: nginx
+    hosts:
+      - host: grafana.company.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.company.com
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: InfluxDB
+          type: influxdb
+          access: proxy
+          url: http://influxdb:8086
+          secureJsonData:
+            token: strezz-admin-token
+          jsonData:
+            version: Flux
+            organization: strezz
+            defaultBucket: k6
+            tlsSkipVerify: true
+            httpMethod: POST
+  dashboards:
+    default:
+      strezz-performance:
+        gnetId: 0
+        revision: 1
+        datasource: InfluxDB
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+# Redis configuration
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: "strezz123"
+  master:
+    persistence:
+      enabled: true
+      size: 5Gi
+      storageClass: ""
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+# Monitoring configuration
+monitoring:
+  # Prometheus Operator
+  prometheusOperator:
+    enabled: false
+    
+  # Service Monitor
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+    
+  # Pod Monitor
+  podMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+    
+  # Grafana Dashboard
+  grafanaDashboard:
+    enabled: true
+    label: "strezz-dashboard"
+    
+  # Alert Manager
+  alertManager:
+    enabled: false
+    config:
+      global:
+        slack_api_url: ""
+      route:
+        group_by: ['alertname']
+        group_wait: 10s
+        group_interval: 10s
+        repeat_interval: 1h
+        receiver: 'slack-notifications'
+      receivers:
+        - name: 'slack-notifications'
+          slack_configs:
+            - channel: '#alerts'
+              send_resolved: true
+
+# Backup configuration
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: "30d"
+  
+  # CronJob configuration
+  cronJob:
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 1
+    
+  # Backup storage
+  storage:
+    type: "s3"
+    bucket: "strezz-backups"
+    region: "us-east-1"
+    encryption: "AES256"
+    
+  # Backup content
+  content:
+    - "test_results"
+    - "configurations"
+    - "metrics"
+    - "logs"
+    - "databases"
+
+# Network policies
+networkPolicy:
+  enabled: true
+  
+  # Ingress rules
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3000
+          
+  # Egress rules
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+      ports:
+        - protocol: TCP
+          port: 53
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9090
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: default
+      ports:
+        - protocol: TCP
+          port: 8086  # InfluxDB
+        - protocol: TCP
+          port: 3000  # Grafana
+        - protocol: TCP
+          port: 5432  # PostgreSQL
+        - protocol: TCP
+          port: 6379  # Redis
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  maxUnavailable: 1
+
+# Horizontal pod autoscaler
+horizontalPodAutoscaler:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+  
+  # Custom metrics
+  customMetrics:
+    - type: Pods
+      pods:
+        metric:
+          name: http_requests_per_second
+        target:
+          type: AverageValue
+          averageValue: 100
+
+# Vertical pod autoscaler
+verticalPodAutoscaler:
+  enabled: false
+  updatePolicy:
+    updateMode: "Auto"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: '*'
+        minAllowed:
+          cpu: 100m
+          memory: 50Mi
+        maxAllowed:
+          cpu: 1
+          memory: 500Mi
+        controlledValues: RequestsAndLimits
+
+# Pod security standards
+podSecurityStandards:
+  enabled: true
+  level: "restricted"
+  
+  # Security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+    
+  # Container security context
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+        
+  # Volume security
+  volumeSecurity:
+    readOnlyRootFilesystem: true
+    emptyDir: {}
+    projected:
+      defaultMode: 0400
+    secret:
+      defaultMode: 0400
+    configMap:
+      defaultMode: 0400
+
+# Resource quotas
+resourceQuotas:
+  enabled: false
+  
+  # CPU and memory limits
+  limits:
+    cpu: "4"
+    memory: "8Gi"
+    requests.cpu: "2"
+    requests.memory: "4Gi"
+    
+  # Storage limits
+  storage:
+    requests.storage: "100Gi"
+    persistentvolumeclaims: "10"
+    
+  # Object counts
+  objects:
+    configmaps: "10"
+    persistentvolumeclaims: "10"
+    pods: "20"
+    replicationcontrollers: "20"
+    resourcequotas: "1"
+    services: "5"
+    services.loadbalancers: "0"
+    services.nodeports: "0"
+    secrets: "10"
+
+# Limit ranges
+limitRanges:
+  enabled: false
+  
+  # Container limits
+  container:
+    default:
+      cpu: "500m"
+      memory: "1Gi"
+    defaultRequest:
+      cpu: "250m"
+      memory: "512Mi"
+    max:
+      cpu: "2"
+      memory: "4Gi"
+    min:
+      cpu: "100m"
+      memory: "128Mi"
+      
+  # Pod limits
+  pod:
+    max:
+      cpu: "4"
+      memory: "8Gi"
+    min:
+      cpu: "100m"
+      memory: "128Mi"
+
+# Node affinity
+nodeAffinity:
+  enabled: false
+  
+  # Required node affinity
+  requiredDuringSchedulingIgnoredDuringExecution:
+    nodeSelectorTerms:
+      - matchExpressions:
+          - key: "kubernetes.io/os"
+            operator: In
+            values:
+              - linux
+              
+  # Preferred node affinity
+  preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      preference:
+        matchExpressions:
+          - key: "node-role.kubernetes.io/worker"
+            operator: In
+            values:
+              - "true"
+
+# Pod anti-affinity
+podAntiAffinity:
+  enabled: true
+  
+  # Preferred anti-affinity
+  preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      podAffinityTerm:
+        labelSelector:
+          matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values:
+                - strezz
+        topologyKey: kubernetes.io/hostname
+
+# Tolerations
+tolerations:
+  enabled: false
+  
+  # Example tolerations
+  - key: "node-role.kubernetes.io/master"
+    operator: "Exists"
+    effect: "NoSchedule"
+  - key: "dedicated"
+    operator: "Equal"
+    value: "strezz"
+    effect: "NoSchedule"
+
+# Annotations
+annotations:
+  # Pod annotations
+  pod:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3000"
+    prometheus.io/path: "/metrics"
+    
+  # Service annotations
+  service:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    
+  # Ingress annotations
+  ingress:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+
+# Labels
+labels:
+  # Application labels
+  app:
+    name: "strezz"
+    version: "2.0.0"
+    component: "performance-testing"
+    
+  # Environment labels
+  environment:
+    name: "production"
+    tier: "application"
+    
+  # Monitoring labels
+  monitoring:
+    prometheus: "true"
+    grafana: "true"
+    alertmanager: "false"
+
+# Secrets management
+secrets:
+  # External secrets operator
+  externalSecrets:
+    enabled: false
+    secretStore: "aws-secrets-manager"
+    externalSecret:
+      name: "strezz-secrets"
+      refreshInterval: "1h"
+      
+  # Sealed secrets
+  sealedSecrets:
+    enabled: false
+    controller: "sealed-secrets-controller"
+    
+  # Vault
+  vault:
+    enabled: false
+    address: "https://vault.company.com"
+    path: "secret/strezz"
+    role: "strezz-role"
+
+# Certificates
+certificates:
+  # Cert-manager
+  certManager:
+    enabled: true
+    clusterIssuer: "letsencrypt-prod"
+    duration: "90d"
+    renewBefore: "30d"
+    
+  # Self-signed certificates
+  selfSigned:
+    enabled: false
+    caSecretName: "strezz-ca"
+    certSecretName: "strezz-cert"
+    
+  # External certificates
+  external:
+    enabled: false
+    secretName: "strezz-external-cert"
+    key: "tls.key"
+    cert: "tls.crt"
+    ca: "ca.crt"
+
+# RBAC configuration
+rbac:
+  # Service account
+  serviceAccount:
+    create: true
+    name: "strezz"
+    annotations: {}
+    
+  # Cluster role
+  clusterRole:
+    create: false
+    name: "strezz-cluster-role"
+    rules: []
+    
+  # Role
+  role:
+    create: true
+    name: "strezz-role"
+    rules:
+      - apiGroups: [""]
+        resources: ["pods", "services", "endpoints", "persistentvolumeclaims", "events", "configmaps", "secrets"]
+        verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+      - apiGroups: ["apps"]
+        resources: ["deployments", "replicasets", "statefulsets"]
+        verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+      - apiGroups: ["networking.k8s.io"]
+        resources: ["ingresses", "networkpolicies"]
+        verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+      - apiGroups: ["monitoring.coreos.com"]
+        resources: ["servicemonitors", "podmonitors", "prometheusrules"]
+        verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+        
+  # Role binding
+  roleBinding:
+    create: true
+    name: "strezz-role-binding"
+    roleRef:
+      apiGroup: "rbac.authorization.k8s.io"
+      kind: "Role"
+      name: "strezz-role"
+    subjects:
+      - kind: "ServiceAccount"
+        name: "strezz"
+        namespace: "default"

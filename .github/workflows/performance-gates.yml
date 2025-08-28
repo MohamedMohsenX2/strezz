@@ -1,0 +1,265 @@
+name: Performance Gates
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to test'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      test_type:
+        description: 'Type of performance test'
+        required: true
+        default: 'smoke'
+        type: choice
+        options:
+        - smoke
+        - load
+        - stress
+
+env:
+  NODE_VERSION: '22'
+  K6_VERSION: 'v0.47.0'
+
+jobs:
+  performance-test:
+    name: Performance Test - ${{ github.event.inputs.test_type || 'smoke' }}
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        config: [laravel-ecommerce, yii-cms, generic-api]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Build application
+      run: npm run build
+      
+    - name: Install k6
+      run: |
+        sudo gpg -k
+        sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+        echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+        sudo apt-get update
+        sudo apt-get install k6
+        
+    - name: Generate performance test
+      run: |
+        node dist/strezz.js \
+          --config examples/${{ matrix.config }}.json \
+          --backend k6 \
+          --output ${{ matrix.config }}-test.js
+          
+    - name: Run performance test
+      run: |
+        k6 run \
+          --out json=results-${{ matrix.config }}.json \
+          --out influxdb=http://localhost:8086/k6 \
+          ${{ matrix.config }}-test.js
+      env:
+        K6_VUS: ${{ github.event.inputs.test_type == 'load' && '10' || github.event.inputs.test_type == 'stress' && '20' || '1' }}
+        K6_DURATION: ${{ github.event.inputs.test_type == 'smoke' && '30s' || github.event.inputs.test_type == 'load' && '5m' || '3m' }}
+        
+    - name: Parse test results
+      id: parse-results
+      run: |
+        # Extract key metrics from k6 results
+        if [ -f "results-${{ matrix.config }}.json" ]; then
+          # Parse JSON results and extract metrics
+          echo "::set-output name=has_results::true"
+          
+          # Extract P95 response time
+          P95_RESPONSE=$(jq -r '.metrics.http_req_duration.values.p95 // "N/A"' results-${{ matrix.config }}.json)
+          echo "::set-output name=p95_response::$P95_RESPONSE"
+          
+          # Extract error rate
+          ERROR_RATE=$(jq -r '.metrics.http_req_failed.values.rate // "N/A"' results-${{ matrix.config }}.json)
+          echo "::set-output name=error_rate::$ERROR_RATE"
+          
+          # Extract request rate
+          REQUEST_RATE=$(jq -r '.metrics.http_reqs.values.rate // "N/A"' results-${{ matrix.config }}.json)
+          echo "::set-output name=request_rate::$REQUEST_RATE"
+          
+          echo "Performance metrics for ${{ matrix.config }}:"
+          echo "P95 Response Time: ${P95_RESPONSE}ms"
+          echo "Error Rate: ${ERROR_RATE}%"
+          echo "Request Rate: ${REQUEST_RATE} req/s"
+        else
+          echo "::set-output name=has_results::false"
+          echo "No results file found"
+        fi
+        
+    - name: Check performance thresholds
+      id: check-thresholds
+      run: |
+        if [ "${{ steps.parse-results.outputs.has_results }}" == "true" ]; then
+          # Get thresholds from config
+          P95_THRESHOLD=$(jq -r '.thresholds.http_req_duration[0] // "p(95)<1000"' examples/${{ matrix.config }}.json | sed 's/p(95)<//')
+          ERROR_THRESHOLD=$(jq -r '.thresholds.http_req_failed[0] // "rate<1%"' examples/${{ matrix.config }}.json | sed 's/rate<//' | sed 's/%//')
+          
+          echo "Thresholds for ${{ matrix.config }}:"
+          echo "P95 Response Time: < ${P95_THRESHOLD}ms"
+          echo "Error Rate: < ${ERROR_THRESHOLD}%"
+          
+          # Check P95 threshold
+          if [ "${{ steps.parse-results.outputs.p95_response }}" != "N/A" ] && [ "${{ steps.parse-results.outputs.p95_response }}" -gt "$P95_THRESHOLD" ]; then
+            echo "::set-output name=p95_failed::true"
+            echo "❌ P95 response time ${P95_RESPONSE}ms exceeds threshold ${P95_THRESHOLD}ms"
+          else
+            echo "::set-output name=p95_failed::false"
+            echo "✅ P95 response time within threshold"
+          fi
+          
+          # Check error rate threshold
+          if [ "${{ steps.parse-results.outputs.error_rate }}" != "N/A" ] && [ "${{ steps.parse-results.outputs.error_rate }}" -gt "$ERROR_THRESHOLD" ]; then
+            echo "::set-output name=error_failed::true"
+            echo "❌ Error rate ${ERROR_RATE}% exceeds threshold ${ERROR_THRESHOLD}%"
+          else
+            echo "::set-output name=error_failed::false"
+            echo "✅ Error rate within threshold"
+          fi
+          
+          # Overall result
+          if [ "${{ steps.check-thresholds.outputs.p95_failed }}" == "true" ] || [ "${{ steps.check-thresholds.outputs.error_failed }}" == "true" ]; then
+            echo "::set-output name=overall_failed::true"
+            echo "❌ Performance thresholds exceeded"
+          else
+            echo "::set-output name=overall_failed::false"
+            echo "✅ All performance thresholds met"
+          fi
+        else
+          echo "::set-output name=overall_failed::true"
+          echo "❌ No test results available"
+        fi
+        
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: performance-results-${{ matrix.config }}
+        path: |
+          results-${{ matrix.config }}.json
+          ${{ matrix.config }}-test.js
+          
+    - name: Performance Gate Result
+      if: steps.check-thresholds.outputs.overall_failed == 'true'
+      run: |
+        echo "🚨 PERFORMANCE GATE FAILED 🚨"
+        echo "Configuration: ${{ matrix.config }}"
+        echo "Test Type: ${{ github.event.inputs.test_type || 'smoke' }}"
+        echo ""
+        echo "Performance thresholds were exceeded:"
+        if [ "${{ steps.check-thresholds.outputs.p95_failed }}" == "true" ]; then
+          echo "- P95 response time: ${P95_RESPONSE}ms (threshold: ${P95_THRESHOLD}ms)"
+        fi
+        if [ "${{ steps.check-thresholds.outputs.error_failed }}" == "true" ]; then
+          echo "- Error rate: ${ERROR_RATE}% (threshold: ${ERROR_THRESHOLD}%)"
+        fi
+        echo ""
+        echo "This indicates a potential performance regression."
+        echo "Please investigate and optimize before merging."
+        
+    - name: Performance Gate Passed
+      if: steps.check-thresholds.outputs.overall_failed == 'false'
+      run: |
+        echo "✅ PERFORMANCE GATE PASSED ✅"
+        echo "Configuration: ${{ matrix.config }}"
+        echo "Test Type: ${{ github.event.inputs.test_type || 'smoke' }}"
+        echo ""
+        echo "All performance thresholds met:"
+        echo "- P95 response time: ${P95_RESPONSE}ms"
+        echo "- Error rate: ${ERROR_RATE}%"
+        echo "- Request rate: ${REQUEST_RATE} req/s"
+        
+  performance-summary:
+    name: Performance Summary
+    runs-on: ubuntu-latest
+    needs: performance-test
+    if: always()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download all results
+      uses: actions/download-artifact@v4
+      with:
+        pattern: performance-results-*
+        merge-multiple: true
+        
+    - name: Generate performance report
+      run: |
+        echo "# Performance Test Results" > performance-report.md
+        echo "" >> performance-report.md
+        echo "## Summary" >> performance-report.md
+        echo "" >> performance-report.md
+        echo "- **Test Type**: ${{ github.event.inputs.test_type || 'smoke' }}" >> performance-report.md
+        echo "- **Environment**: ${{ github.event.inputs.environment || 'staging' }}" >> performance-report.md
+        echo "- **Timestamp**: $(date)" >> performance-report.md
+        echo "" >> performance-report.md
+        echo "## Results by Configuration" >> performance-report.md
+        echo "" >> performance-report.md
+        
+        for config in laravel-ecommerce yii-cms generic-api; do
+          if [ -f "results-${config}.json" ]; then
+            echo "### ${config}" >> performance-report.md
+            echo "" >> performance-report.md
+            
+            # Extract and format metrics
+            P95=$(jq -r '.metrics.http_req_duration.values.p95 // "N/A"' results-${config}.json)
+            ERROR_RATE=$(jq -r '.metrics.http_req_failed.values.rate // "N/A"' results-${config}.json)
+            REQUEST_RATE=$(jq -r '.metrics.http_reqs.values.rate // "N/A"' results-${config}.json)
+            
+            echo "- **P95 Response Time**: ${P95}ms" >> performance-report.md
+            echo "- **Error Rate**: ${ERROR_RATE}%" >> performance-report.md
+            echo "- **Request Rate**: ${REQUEST_RATE} req/s" >> performance-report.md
+            echo "" >> performance-report.md
+          fi
+        done
+        
+        echo "## Next Steps" >> performance-report.md
+        echo "" >> performance-report.md
+        echo "1. Review performance metrics against thresholds" >> performance-report.md
+        echo "2. Investigate any failed thresholds" >> performance-report.md
+        echo "3. Optimize performance bottlenecks" >> performance-report.md
+        echo "4. Re-run tests after optimizations" >> performance-report.md
+        
+    - name: Upload performance report
+      uses: actions/upload-artifact@v4
+      with:
+        name: performance-report
+        path: performance-report.md
+        
+    - name: Comment on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const report = fs.readFileSync('performance-report.md', 'utf8');
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: report
+          });

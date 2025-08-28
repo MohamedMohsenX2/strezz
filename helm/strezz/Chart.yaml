@@ -1,0 +1,38 @@
+apiVersion: v2
+name: strezz
+description: A Helm chart for Strezz Performance Test Generator
+type: application
+version: 2.0.0
+appVersion: "2.0.0"
+keywords:
+- performance-testing
+- k6
+- locust
+- load-testing
+- monitoring
+home: https://github.com/MohamedMohsenX2/strezz
+sources:
+- https://github.com/MohamedMohsenX2/strezz
+maintainers:
+- name: Strezz Team
+  email: devops@company.com
+icon: https://raw.githubusercontent.com/MohamedMohsenX2/strezz/main/docs/logo.png
+
+# Dependencies
+dependencies:
+- name: postgresql
+  version: 12.x.x
+  repository: https://charts.bitnami.com/bitnami
+  condition: postgresql.enabled
+- name: influxdb
+  version: 5.x.x
+  repository: https://charts.bitnami.com/bitnami
+  condition: influxdb.enabled
+- name: grafana
+  version: 7.x.x
+  repository: https://charts.bitnami.com/bitnami
+  condition: grafana.enabled
+- name: redis
+  version: 17.x.x
+  repository: https://charts.bitnami.com/bitnami
+  condition: redis.enabled

@@ -1,0 +1,413 @@
+# Production Configuration for Strezz Performance Test Generator
+# This file contains production-ready settings and configurations
+
+# Environment Configuration
+environment:
+  name: production
+  debug: false
+  log_level: warn
+  metrics_enabled: true
+  health_check_enabled: true
+
+# Performance Testing Configuration
+performance:
+  # Default thresholds for production
+  thresholds:
+    global:
+      response_time:
+        p95: 2000    # 2 seconds
+        p99: 5000    # 5 seconds
+        max: 10000   # 10 seconds
+      error_rate:
+        max: 0.01    # 1%
+      request_rate:
+        min: 100     # 100 req/s minimum
+        target: 500  # 500 req/s target
+    
+    # Framework-specific thresholds
+    frameworks:
+      laravel:
+        response_time:
+          p95: 1500
+          p99: 3000
+        error_rate:
+          max: 0.005
+        request_rate:
+          min: 150
+          target: 750
+      
+      yii:
+        response_time:
+          p95: 1800
+          p99: 4000
+        error_rate:
+          max: 0.008
+        request_rate:
+          min: 120
+          target: 600
+      
+      generic:
+        response_time:
+          p95: 2000
+          p99: 5000
+        error_rate:
+          max: 0.01
+        request_rate:
+          min: 100
+          target: 500
+
+# Test Scenarios Configuration
+scenarios:
+  # Production load testing scenarios
+  production_load:
+    name: "Production Load Test"
+    description: "Production load testing with realistic traffic patterns"
+    executor: "ramping-vus"
+    startVUs: 0
+    stages:
+      - duration: "5m", target: 50    # Warm-up
+      - duration: "15m", target: 100  # Normal load
+      - duration: "10m", target: 150  # Peak load
+      - duration: "10m", target: 100  # Return to normal
+      - duration: "5m", target: 0     # Cool-down
+    gracefulRampDown: "2m"
+    
+  # Production stress testing
+  production_stress:
+    name: "Production Stress Test"
+    description: "Find breaking point under production conditions"
+    executor: "ramping-vus"
+    startVUs: 0
+    stages:
+      - duration: "10m", target: 100   # Baseline
+      - duration: "15m", target: 200   # Stress
+      - duration: "15m", target: 300   # High stress
+      - duration: "10m", target: 100   # Recovery
+      - duration: "5m", target: 0      # Cool-down
+    gracefulRampDown: "3m"
+    
+  # Production soak testing
+  production_soak:
+    name: "Production Soak Test"
+    description: "Long-term stability testing"
+    executor: "constant-vus"
+    vus: 75
+    duration: "4h"
+    gracefulStop: "5m"
+
+# Authentication Configuration
+auth:
+  # Production authentication settings
+  production:
+    # Rate limiting for auth endpoints
+    rate_limit:
+      login_attempts: 5
+      window: "15m"
+      block_duration: "1h"
+    
+    # Session management
+    session:
+      timeout: "8h"
+      refresh_threshold: "1h"
+      secure_cookies: true
+      http_only: true
+    
+    # JWT settings
+    jwt:
+      secret: "${JWT_SECRET}"
+      expires_in: "8h"
+      refresh_expires_in: "7d"
+      algorithm: "HS256"
+    
+    # CSRF protection
+    csrf:
+      enabled: true
+      token_length: 32
+      cookie_secure: true
+
+# Monitoring Configuration
+monitoring:
+  # InfluxDB configuration
+  influxdb:
+    url: "${INFLUXDB_URL}"
+    token: "${INFLUXDB_TOKEN}"
+    org: "${INFLUXDB_ORG}"
+    bucket: "strezz-production"
+    retention_policy: "30d"
+    batch_size: 1000
+    flush_interval: "10s"
+  
+  # Grafana configuration
+  grafana:
+    url: "${GRAFANA_URL}"
+    api_key: "${GRAFANA_API_KEY}"
+    dashboard_uid: "strezz-production"
+    
+  # Alerting configuration
+  alerts:
+    enabled: true
+    channels:
+      - type: "slack"
+        webhook_url: "${SLACK_WEBHOOK_URL}"
+        channel: "#performance-alerts"
+      - type: "email"
+        smtp_host: "${SMTP_HOST}"
+        smtp_port: 587
+        username: "${SMTP_USERNAME}"
+        password: "${SMTP_PASSWORD}"
+        from: "strezz@company.com"
+        to: ["devops@company.com", "sre@company.com"]
+    
+    # Alert thresholds
+    thresholds:
+      response_time_p95:
+        warning: 3000
+        critical: 5000
+      error_rate:
+        warning: 0.02
+        critical: 0.05
+      request_rate:
+        warning: 80
+        critical: 50
+
+# Security Configuration
+security:
+  # API security
+  api:
+    rate_limit:
+      window: "1m"
+      max_requests: 1000
+      block_duration: "10m"
+    
+    cors:
+      enabled: true
+      allowed_origins: ["https://company.com"]
+      allowed_methods: ["GET", "POST", "PUT", "DELETE"]
+      allowed_headers: ["Content-Type", "Authorization"]
+      credentials: true
+    
+    authentication:
+      required: true
+      methods: ["bearer", "api_key"]
+    
+  # Data protection
+  data_protection:
+    encryption:
+      enabled: true
+      algorithm: "AES-256-GCM"
+      key_rotation: "90d"
+    
+    pii_handling:
+      mask_emails: true
+      mask_phone_numbers: true
+      anonymize_ips: true
+    
+    retention:
+      test_results: "90d"
+      logs: "30d"
+      metrics: "1y"
+
+# Logging Configuration
+logging:
+  level: "warn"
+  format: "json"
+  output: "file"
+  file:
+    path: "/var/log/strezz"
+    max_size: "100MB"
+    max_files: 10
+    compress: true
+  
+  # Structured logging
+  structured:
+    enabled: true
+    include_timestamp: true
+    include_request_id: true
+    include_user_id: true
+    
+  # Log aggregation
+  aggregation:
+    enabled: true
+    batch_size: 100
+    flush_interval: "5s"
+    endpoint: "${LOG_AGGREGATION_ENDPOINT}"
+
+# Database Configuration
+database:
+  # Test results storage
+  results:
+    type: "postgresql"
+    host: "${DB_HOST}"
+    port: 5432
+    database: "strezz_production"
+    username: "${DB_USERNAME}"
+    password: "${DB_PASSWORD}"
+    ssl: true
+    connection_pool:
+      min: 5
+      max: 20
+      acquire_timeout: "30s"
+      idle_timeout: "10m"
+    
+  # Metrics storage
+  metrics:
+    type: "influxdb"
+    url: "${INFLUXDB_URL}"
+    token: "${INFLUXDB_TOKEN}"
+    org: "${INFLUXDB_ORG}"
+    bucket: "strezz-metrics"
+    retention_policy: "1y"
+
+# Backup Configuration
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: "30d"
+  
+  # Backup storage
+  storage:
+    type: "s3"
+    bucket: "${BACKUP_S3_BUCKET}"
+    region: "${AWS_REGION}"
+    encryption: "AES256"
+    
+  # Backup content
+  content:
+    - "test_results"
+    - "configurations"
+    - "metrics"
+    - "logs"
+
+# Health Check Configuration
+health_check:
+  enabled: true
+  interval: "30s"
+  timeout: "10s"
+  retries: 3
+  
+  # Health check endpoints
+  endpoints:
+    - name: "database"
+      url: "postgresql://${DB_HOST}:5432/${DB_DATABASE}"
+      timeout: "5s"
+    - name: "influxdb"
+      url: "${INFLUXDB_URL}/health"
+      timeout: "5s"
+    - name: "grafana"
+      url: "${GRAFANA_URL}/api/health"
+      timeout: "5s"
+  
+  # Health check notifications
+  notifications:
+    enabled: true
+    channels: ["slack", "email"]
+    failure_threshold: 3
+
+# Performance Optimization
+optimization:
+  # Memory management
+  memory:
+    max_heap_size: "2G"
+    gc_optimization: true
+    memory_pool: true
+    
+  # CPU optimization
+  cpu:
+    worker_threads: 4
+    thread_pool_size: 20
+    cpu_affinity: true
+    
+  # Network optimization
+  network:
+    keep_alive: true
+    tcp_nodelay: true
+    connection_pooling: true
+    max_connections: 1000
+
+# Deployment Configuration
+deployment:
+  # Container configuration
+  container:
+    image: "strezz:production"
+    tag: "${IMAGE_TAG}"
+    registry: "${CONTAINER_REGISTRY}"
+    
+  # Resource limits
+  resources:
+    cpu:
+      requests: "500m"
+      limits: "2"
+    memory:
+      requests: "1Gi"
+      limits: "4Gi"
+      
+  # Scaling configuration
+  scaling:
+    min_replicas: 2
+    max_replicas: 10
+    target_cpu_utilization: 70
+    target_memory_utilization: 80
+    
+  # Rolling update configuration
+  rolling_update:
+    max_surge: 1
+    max_unavailable: 0
+    strategy: "RollingUpdate"
+
+# Environment Variables
+env_vars:
+  required:
+    - "JWT_SECRET"
+    - "INFLUXDB_URL"
+    - "INFLUXDB_TOKEN"
+    - "INFLUXDB_ORG"
+    - "GRAFANA_URL"
+    - "GRAFANA_API_KEY"
+    - "DB_HOST"
+    - "DB_USERNAME"
+    - "DB_PASSWORD"
+    - "SLACK_WEBHOOK_URL"
+    - "AWS_REGION"
+    - "BACKUP_S3_BUCKET"
+    
+  optional:
+    - "LOG_AGGREGATION_ENDPOINT"
+    - "SMTP_HOST"
+    - "SMTP_USERNAME"
+    - "SMTP_PASSWORD"
+    - "CONTAINER_REGISTRY"
+    - "IMAGE_TAG"
+
+# Validation Rules
+validation:
+  # Configuration validation
+  config:
+    required_fields:
+      - "environment.name"
+      - "performance.thresholds.global"
+      - "monitoring.influxdb.url"
+      - "security.api.rate_limit"
+    
+    value_constraints:
+      response_time_p95:
+        min: 100
+        max: 10000
+      error_rate:
+        min: 0
+        max: 0.1
+      request_rate:
+        min: 10
+        max: 10000
+        
+  # Environment validation
+  environment:
+    required_services:
+      - "database"
+      - "influxdb"
+      - "grafana"
+    
+    network_requirements:
+      - "database_connectivity"
+      - "influxdb_connectivity"
+      - "grafana_connectivity"
+      - "external_api_connectivity"

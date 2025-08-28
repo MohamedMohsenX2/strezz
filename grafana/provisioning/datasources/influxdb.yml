@@ -1,0 +1,15 @@
+apiVersion: 1
+
+datasources:
+- name: InfluxDB
+  type: influxdb
+  access: proxy
+  url: http://influxdb:8086
+  secureJsonData:
+    token: strezz-admin-token
+  jsonData:
+    version: Flux
+    organization: strezz
+    defaultBucket: k6
+    tlsSkipVerify: true
+    httpMethod: POST

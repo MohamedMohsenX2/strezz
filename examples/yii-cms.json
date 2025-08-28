@@ -1,0 +1,334 @@
+{
+  "target": {
+    "url": "https://yii-cms.example.com",
+    "baseURL": "https://yii-cms.example.com",
+    "framework": "yii"
+  },
+  "scenarios": [
+    {
+      "name": "smoke",
+      "executor": "constant-vus",
+      "vus": 1,
+      "duration": "30s",
+      "description": "Basic functionality verification"
+    },
+    {
+      "name": "load",
+      "executor": "ramping-vus",
+      "stages": [
+        { "duration": "2m", "target": 15 },
+        { "duration": "5m", "target": 15 },
+        { "duration": "2m", "target": 0 }
+      ],
+      "description": "Load testing with moderate concurrency"
+    },
+    {
+      "name": "spike",
+      "executor": "ramping-vus",
+      "stages": [
+        { "duration": "1m", "target": 50 },
+        { "duration": "2m", "target": 50 },
+        { "duration": "1m", "target": 0 }
+      ],
+      "description": "Spike testing for traffic bursts"
+    }
+  ],
+  "auth": {
+    "type": "csrf",
+    "endpoints": {
+      "csrf": "/site/csrf",
+      "login": "/site/login",
+      "logout": "/site/logout"
+    },
+    "credentials": {
+      "username": "admin@example.com",
+      "password": "admin123"
+    }
+  },
+  "requests": [
+    {
+      "name": "Homepage",
+      "method": "GET",
+      "path": "/",
+      "description": "Load homepage with featured content",
+      "checks": [
+        "status is 200",
+        "response time < 800ms",
+        "contains featured articles"
+      ]
+    },
+    {
+      "name": "Article List",
+      "method": "GET",
+      "path": "/article/index",
+      "description": "Fetch paginated article list",
+      "query": {
+        "page": "1",
+        "per-page": "15",
+        "category": "technology"
+      },
+      "checks": [
+        "status is 200",
+        "response time < 600ms",
+        "has pagination controls",
+        "contains article summaries"
+      ]
+    },
+    {
+      "name": "Article Search",
+      "method": "GET",
+      "path": "/article/search",
+      "description": "Search articles with filters",
+      "query": {
+        "q": "artificial intelligence",
+        "category": "technology",
+        "date_from": "2023-01-01",
+        "date_to": "2024-12-31"
+      },
+      "checks": [
+        "status is 200",
+        "response time < 1000ms",
+        "search results relevant",
+        "has result count"
+      ]
+    },
+    {
+      "name": "Article View",
+      "method": "GET",
+      "path": "/article/view/1",
+      "description": "View full article content",
+      "checks": [
+        "status is 200",
+        "response time < 500ms",
+        "contains full article",
+        "has author info",
+        "has publish date"
+      ]
+    },
+    {
+      "name": "Category List",
+      "method": "GET",
+      "path": "/category/index",
+      "description": "Browse content categories",
+      "checks": [
+        "status is 200",
+        "response time < 400ms",
+        "contains categories",
+        "has article counts"
+      ]
+    },
+    {
+      "name": "Category Articles",
+      "method": "GET",
+      "path": "/category/view/technology",
+      "description": "View articles in specific category",
+      "query": {
+        "page": "1",
+        "per-page": "20"
+      },
+      "checks": [
+        "status is 200",
+        "response time < 700ms",
+        "contains category articles",
+        "has category info"
+      ]
+    },
+    {
+      "name": "User Registration",
+      "method": "POST",
+      "path": "/site/register",
+      "description": "Register new user account",
+      "body": {
+        "username": "newuser",
+        "email": "newuser@example.com",
+        "password": "newpass123",
+        "password_repeat": "newpass123",
+        "agree_terms": true
+      },
+      "checks": [
+        "status is 200",
+        "response time < 1500ms",
+        "registration successful"
+      ]
+    },
+    {
+      "name": "User Login",
+      "method": "POST",
+      "path": "/site/login",
+      "description": "Authenticate user",
+      "body": {
+        "username": "testuser",
+        "password": "testpass123",
+        "rememberMe": true
+      },
+      "checks": [
+        "status is 200",
+        "response time < 800ms",
+        "login successful",
+        "session established"
+      ]
+    },
+    {
+      "name": "Create Article",
+      "method": "POST",
+      "path": "/article/create",
+      "description": "Create new article (authenticated)",
+      "body": {
+        "title": "Test Article Title",
+        "content": "This is a test article content with some sample text.",
+        "category_id": 1,
+        "tags": ["test", "sample"],
+        "status": "draft"
+      },
+      "checks": [
+        "status is 200",
+        "response time < 2000ms",
+        "article created",
+        "has article ID"
+      ]
+    },
+    {
+      "name": "Update Article",
+      "method": "PUT",
+      "path": "/article/update/1",
+      "description": "Update existing article",
+      "body": {
+        "title": "Updated Article Title",
+        "content": "Updated article content with modifications.",
+        "category_id": 2,
+        "tags": ["updated", "modified"],
+        "status": "published"
+      },
+      "checks": [
+        "status is 200",
+        "response time < 1500ms",
+        "article updated"
+      ]
+    },
+    {
+      "name": "Delete Article",
+      "method": "DELETE",
+      "path": "/article/delete/1",
+      "description": "Delete article (soft delete)",
+      "checks": [
+        "status is 204",
+        "response time < 800ms"
+      ]
+    },
+    {
+      "name": "Upload Media",
+      "method": "POST",
+      "path": "/media/upload",
+      "description": "Upload media file",
+      "body": {
+        "file": "test-image.jpg",
+        "category": "images",
+        "description": "Test image upload"
+      },
+      "checks": [
+        "status is 201",
+        "response time < 3000ms",
+        "file uploaded",
+        "has media ID"
+      ]
+    },
+    {
+      "name": "Comment on Article",
+      "method": "POST",
+      "path": "/article/1/comment",
+      "description": "Add comment to article",
+      "body": {
+        "content": "This is a test comment on the article.",
+        "parent_id": null
+      },
+      "checks": [
+        "status is 201",
+        "response time < 600ms",
+        "comment added",
+        "has comment ID"
+      ]
+    },
+    {
+      "name": "User Profile",
+      "method": "GET",
+      "path": "/user/profile",
+      "description": "View user profile",
+      "checks": [
+        "status is 200",
+        "response time < 400ms",
+        "contains profile data",
+        "has user stats"
+      ]
+    },
+    {
+      "name": "Update Profile",
+      "method": "PUT",
+      "path": "/user/profile",
+      "description": "Update user profile",
+      "body": {
+        "first_name": "John",
+        "last_name": "Doe",
+        "bio": "Updated bio information",
+        "website": "https://example.com"
+      },
+      "checks": [
+        "status is 200",
+        "response time < 800ms",
+        "profile updated"
+      ]
+    },
+    {
+      "name": "Admin Dashboard",
+      "method": "GET",
+      "path": "/admin/dashboard",
+      "description": "Access admin dashboard",
+      "checks": [
+        "status is 200",
+        "response time < 600ms",
+        "contains admin stats",
+        "has navigation menu"
+      ]
+    },
+    {
+      "name": "User Management",
+      "method": "GET",
+      "path": "/admin/users",
+      "description": "View user management page",
+      "query": {
+        "page": "1",
+        "per-page": "25",
+        "status": "active"
+      },
+      "checks": [
+        "status is 200",
+        "response time < 800ms",
+        "contains user list",
+        "has user actions"
+      ]
+    }
+  ],
+  "thresholds": {
+    "http_req_duration": ["p(95)<800", "p(99)<1500"],
+    "http_req_failed": ["rate<0.5%"],
+    "http_req_rate": ["rate>80"],
+    "custom_metrics": {
+      "article_operations": ["p(95)<1000"],
+      "user_operations": ["p(95)<600"],
+      "media_operations": ["p(95)<4000"]
+    }
+  },
+  "tags": {
+    "environment": "staging",
+    "service": "cms",
+    "team": "content"
+  },
+  "output": {
+    "format": "json",
+    "file": "yii-cms-results.json"
+  },
+  "observability": {
+    "metrics": ["http_req_duration", "http_req_failed", "custom"],
+    "logging": true,
+    "tracing": true
+  }
+}

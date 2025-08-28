@@ -1,0 +1,264 @@
+# Performance Gates Configuration
+# This file defines performance thresholds and rules for CI/CD pipelines
+
+# Global performance thresholds
+global:
+  # Response time thresholds (in milliseconds)
+  response_time:
+    smoke: 5000 # Very lenient for smoke tests
+    load: 2000 # Moderate for load tests
+    stress: 3000 # Higher for stress tests
+    production: 1000 # Strict for production
+
+  # Error rate thresholds (percentage)
+  error_rate:
+    smoke: 5.0 # Allow 5% errors in smoke tests
+    load: 2.0 # Allow 2% errors in load tests
+    stress: 5.0 # Allow 5% errors in stress tests
+    production: 1.0 # Allow 1% errors in production
+
+  # Request rate thresholds (requests per second)
+  request_rate:
+    smoke: 10 # Minimum 10 req/s for smoke tests
+    load: 50 # Minimum 50 req/s for load tests
+    stress: 100 # Minimum 100 req/s for stress tests
+    production: 200 # Minimum 200 req/s for production
+
+# Framework-specific thresholds
+frameworks:
+  laravel:
+    response_time:
+      smoke: 3000
+      load: 1500
+      stress: 2500
+      production: 800
+    error_rate:
+      smoke: 3.0
+      load: 1.5
+      stress: 3.0
+      production: 0.8
+
+  yii:
+    response_time:
+      smoke: 4000
+      load: 2000
+      stress: 3000
+      production: 1000
+    error_rate:
+      smoke: 4.0
+      load: 2.0
+      stress: 4.0
+      production: 1.0
+
+  generic:
+    response_time:
+      smoke: 5000
+      load: 2500
+      stress: 4000
+      production: 1200
+    error_rate:
+      smoke: 5.0
+      load: 2.5
+      stress: 5.0
+      production: 1.2
+
+# Test scenario configurations
+scenarios:
+  smoke:
+    duration: "30s"
+    vus: 1
+    description: "Basic functionality verification"
+    thresholds:
+    - "p(95)<5000"
+    - "rate<5%"
+
+  load:
+    duration: "5m"
+    vus: 10
+    description: "Performance under expected load"
+    thresholds:
+    - "p(95)<2000"
+    - "rate<2%"
+
+  stress:
+    duration: "3m"
+    vus: 20
+    description: "Find breaking point"
+    thresholds:
+    - "p(95)<3000"
+    - "rate<5%"
+
+  soak:
+    duration: "30m"
+    vus: 10
+    description: "Long-term stability"
+    thresholds:
+    - "p(95)<1500"
+    - "rate<1%"
+
+# Performance gate rules
+gates:
+  # PR validation
+  pull_request:
+    required: true
+    scenarios: [ "smoke" ]
+    failure_action: "block"
+    message: "Performance regression detected. Please optimize before merging."
+
+  # Main branch protection
+  main_branch:
+    required: true
+    scenarios: [ "smoke", "load" ]
+    failure_action: "block"
+    message: "Performance regression in main branch. Immediate action required."
+
+  # Release validation
+  release:
+    required: true
+    scenarios: [ "smoke", "load", "stress" ]
+    failure_action: "block"
+    message: "Release blocked due to performance issues."
+
+  # Monitoring
+  monitoring:
+    required: false
+    scenarios: [ "smoke" ]
+    failure_action: "warn"
+    message: "Performance degradation detected. Monitor closely."
+
+# Alerting configuration
+alerts:
+  slack:
+    enabled: false
+    webhook_url: ""
+    channels: [ "#performance", "#alerts" ]
+
+  email:
+    enabled: false
+    recipients: [ "devops@company.com", "performance@company.com" ]
+
+  teams:
+    enabled: false
+    webhook_url: ""
+
+  pagerduty:
+    enabled: false
+    service_key: ""
+
+# Reporting configuration
+reporting:
+  # Generate reports for these scenarios
+  scenarios: [ "smoke", "load", "stress" ]
+
+  # Report formats
+  formats: [ "json", "html", "markdown" ]
+
+  # Include these metrics in reports
+  metrics:
+  - "http_req_duration"
+  - "http_req_failed"
+  - "http_reqs"
+  - "vus"
+  - "data_received"
+  - "data_sent"
+
+  # Custom metrics to track
+  custom_metrics:
+  - "login_duration"
+  - "request_duration"
+  - "error_rate"
+
+  # Threshold violations to highlight
+  violations:
+  - "response_time_exceeded"
+  - "error_rate_exceeded"
+  - "request_rate_below_minimum"
+
+# Environment-specific configurations
+environments:
+  staging:
+    base_url: "https://staging.example.com"
+    thresholds_multiplier: 1.5 # More lenient in staging
+    timeout: "10m"
+
+  production:
+    base_url: "https://api.example.com"
+    thresholds_multiplier: 1.0 # Strict in production
+    timeout: "15m"
+
+  development:
+    base_url: "http://localhost:8000"
+    thresholds_multiplier: 2.0 # Very lenient in development
+    timeout: "5m"
+
+# Performance regression detection
+regression_detection:
+  enabled: true
+
+  # Compare against baseline
+  baseline:
+    source: "main" # Use main branch as baseline
+    scenarios: [ "smoke", "load" ]
+
+  # Regression thresholds
+  thresholds:
+    response_time_increase: 20 # 20% increase is regression
+    error_rate_increase: 50 # 50% increase is regression
+    request_rate_decrease: 25 # 25% decrease is regression
+
+  # Historical data retention
+  retention:
+    days: 30
+    max_baselines: 10
+
+  # Alert on regression
+  alert_on_regression: true
+  regression_message: "Performance regression detected compared to baseline. Please investigate."
+
+# Integration settings
+integrations:
+  # InfluxDB for metrics storage
+  influxdb:
+    enabled: false
+    url: "http://localhost:8086"
+    database: "k6"
+    username: ""
+    password: ""
+
+  # Grafana for visualization
+  grafana:
+    enabled: false
+    url: "http://localhost:3000"
+    api_key: ""
+
+  # Prometheus for metrics
+  prometheus:
+    enabled: false
+    url: "http://localhost:9090"
+
+  # Datadog for monitoring
+  datadog:
+    enabled: false
+    api_key: ""
+    app_key: ""
+    site: "datadoghq.com"
+
+# Performance testing schedule
+schedule:
+  # Automated performance tests
+  automated:
+    smoke: "0 */6 * * *" # Every 6 hours
+    load: "0 2 * * *" # Daily at 2 AM
+    stress: "0 3 * * 0" # Weekly on Sunday at 3 AM
+    soak: "0 4 * * 0" # Weekly on Sunday at 4 AM
+
+  # Manual trigger times
+  manual:
+    business_hours: "9:00-17:00 UTC"
+    maintenance_windows: "02:00-04:00 UTC"
+
+  # Holiday and weekend considerations
+  holidays:
+    skip_on_holidays: true
+    skip_on_weekends: false
+    timezone: "UTC"

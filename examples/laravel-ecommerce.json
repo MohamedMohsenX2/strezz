@@ -1,0 +1,276 @@
+{
+  "target": {
+    "url": "https://laravel-ecommerce.example.com",
+    "baseURL": "https://laravel-ecommerce.example.com",
+    "framework": "laravel"
+  },
+  "scenarios": [
+    {
+      "name": "smoke",
+      "executor": "constant-vus",
+      "vus": 1,
+      "duration": "30s",
+      "description": "Basic functionality verification"
+    },
+    {
+      "name": "load",
+      "executor": "ramping-vus",
+      "stages": [
+        { "duration": "2m", "target": 10 },
+        { "duration": "5m", "target": 10 },
+        { "duration": "2m", "target": 0 }
+      ],
+      "description": "Load testing with gradual ramp-up"
+    },
+    {
+      "name": "stress",
+      "executor": "ramping-vus",
+      "stages": [
+        { "duration": "2m", "target": 20 },
+        { "duration": "5m", "target": 20 },
+        { "duration": "2m", "target": 0 }
+      ],
+      "description": "Stress testing with higher concurrency"
+    }
+  ],
+  "auth": {
+    "type": "sanctum",
+    "endpoints": {
+      "login": "/api/auth/login",
+      "logout": "/api/auth/logout",
+      "refresh": "/api/auth/refresh"
+    },
+    "credentials": {
+      "username": "test@example.com",
+      "password": "password123"
+    }
+  },
+  "requests": [
+    {
+      "name": "Homepage",
+      "method": "GET",
+      "path": "/",
+      "description": "Load homepage with product listings",
+      "checks": [
+        "status is 200",
+        "response time < 1000ms",
+        "contains product listings"
+      ]
+    },
+    {
+      "name": "Product Catalog",
+      "method": "GET",
+      "path": "/api/products",
+      "description": "Fetch paginated product catalog",
+      "query": {
+        "page": "1",
+        "per_page": "20",
+        "category": "electronics"
+      },
+      "checks": [
+        "status is 200",
+        "response time < 500ms",
+        "has pagination metadata",
+        "contains product data"
+      ]
+    },
+    {
+      "name": "Product Search",
+      "method": "GET",
+      "path": "/api/products/search",
+      "description": "Search products with filters",
+      "query": {
+        "q": "smartphone",
+        "min_price": "100",
+        "max_price": "1000",
+        "brand": "Apple"
+      },
+      "checks": [
+        "status is 200",
+        "response time < 800ms",
+        "search results relevant"
+      ]
+    },
+    {
+      "name": "Product Details",
+      "method": "GET",
+      "path": "/api/products/1",
+      "description": "Load detailed product information",
+      "checks": [
+        "status is 200",
+        "response time < 300ms",
+        "contains product details",
+        "has inventory status"
+      ]
+    },
+    {
+      "name": "Add to Cart",
+      "method": "POST",
+      "path": "/api/cart/items",
+      "description": "Add product to shopping cart",
+      "body": {
+        "product_id": 1,
+        "quantity": 2,
+        "options": {
+          "color": "black",
+          "size": "large"
+        }
+      },
+      "checks": [
+        "status is 201",
+        "response time < 400ms",
+        "cart updated successfully"
+      ]
+    },
+    {
+      "name": "View Cart",
+      "method": "GET",
+      "path": "/api/cart",
+      "description": "View current shopping cart",
+      "checks": [
+        "status is 200",
+        "response time < 300ms",
+        "contains cart items",
+        "has total calculation"
+      ]
+    },
+    {
+      "name": "Update Cart Item",
+      "method": "PUT",
+      "path": "/api/cart/items/1",
+      "description": "Update cart item quantity",
+      "body": {
+        "quantity": 3
+      },
+      "checks": [
+        "status is 200",
+        "response time < 400ms",
+        "quantity updated"
+      ]
+    },
+    {
+      "name": "Remove Cart Item",
+      "method": "DELETE",
+      "path": "/api/cart/items/1",
+      "description": "Remove item from cart",
+      "checks": [
+        "status is 204",
+        "response time < 300ms"
+      ]
+    },
+    {
+      "name": "Checkout Process",
+      "method": "POST",
+      "path": "/api/checkout",
+      "description": "Process order checkout",
+      "body": {
+        "shipping_address": {
+          "first_name": "John",
+          "last_name": "Doe",
+          "address": "123 Main St",
+          "city": "Anytown",
+          "state": "CA",
+          "zip": "12345",
+          "country": "US"
+        },
+        "billing_address": {
+          "first_name": "John",
+          "last_name": "Doe",
+          "address": "123 Main St",
+          "city": "Anytown",
+          "state": "CA",
+          "zip": "12345",
+          "country": "US"
+        },
+        "payment_method": {
+          "type": "credit_card",
+          "token": "tok_visa"
+        }
+      },
+      "checks": [
+        "status is 201",
+        "response time < 2000ms",
+        "order created successfully",
+        "has order number"
+      ]
+    },
+    {
+      "name": "Order History",
+      "method": "GET",
+      "path": "/api/orders",
+      "description": "View user order history",
+      "query": {
+        "page": "1",
+        "per_page": "10"
+      },
+      "checks": [
+        "status is 200",
+        "response time < 500ms",
+        "contains order list",
+        "has pagination"
+      ]
+    },
+    {
+      "name": "Order Details",
+      "method": "GET",
+      "path": "/api/orders/1",
+      "description": "View specific order details",
+      "checks": [
+        "status is 200",
+        "response time < 400ms",
+        "contains order details",
+        "has tracking info"
+      ]
+    },
+    {
+      "name": "User Profile",
+      "method": "GET",
+      "path": "/api/user/profile",
+      "description": "Load user profile information",
+      "checks": [
+        "status is 200",
+        "response time < 300ms",
+        "contains user data"
+      ]
+    },
+    {
+      "name": "Update Profile",
+      "method": "PUT",
+      "path": "/api/user/profile",
+      "description": "Update user profile information",
+      "body": {
+        "first_name": "John",
+        "last_name": "Doe",
+        "phone": "+1-555-123-4567"
+      },
+      "checks": [
+        "status is 200",
+        "response time < 500ms",
+        "profile updated"
+      ]
+    }
+  ],
+  "thresholds": {
+    "http_req_duration": ["p(95)<1000", "p(99)<2000"],
+    "http_req_failed": ["rate<1%"],
+    "http_req_rate": ["rate>100"],
+    "custom_metrics": {
+      "cart_operations": ["p(95)<500"],
+      "checkout_process": ["p(95)<3000"]
+    }
+  },
+  "tags": {
+    "environment": "production",
+    "service": "ecommerce",
+    "team": "performance"
+  },
+  "output": {
+    "format": "json",
+    "file": "laravel-ecommerce-results.json"
+  },
+  "observability": {
+    "metrics": ["http_req_duration", "http_req_failed", "custom"],
+    "logging": true,
+    "tracing": false
+  }
+}

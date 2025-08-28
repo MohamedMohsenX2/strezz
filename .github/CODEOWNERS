@@ -1,0 +1,28 @@
+# Global owners
+* @MohamedMohsenX2
+
+# Core generator logic
+/src/ @MohamedMohsenX2
+/src/model/ @MohamedMohsenX2
+/src/backends/ @MohamedMohsenX2
+
+# Configuration and documentation
+*.md @MohamedMohsenX2
+*.yml @MohamedMohsenX2
+*.yaml @MohamedMohsenX2
+*.json @MohamedMohsenX2
+
+# Infrastructure and CI/CD
+/.github/ @MohamedMohsenX2
+/Dockerfile @MohamedMohsenX2
+/docker-compose.yml @MohamedMohsenX2
+
+# Tests
+*.spec.js @MohamedMohsenX2
+*.test.js @MohamedMohsenX2
+/jest.config.js @MohamedMohsenX2
+
+# Security and dependencies
+/package.json @MohamedMohsenX2
+/package-lock.json @MohamedMohsenX2
+/.env.example @MohamedMohsenX2

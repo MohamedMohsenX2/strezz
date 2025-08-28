@@ -1,0 +1,53 @@
+{
+  "target": {
+    "url": "https://httpbin.org",
+    "baseURL": "https://httpbin.org",
+    "framework": "generic"
+  },
+  "scenarios": [
+    {
+      "name": "smoke",
+      "executor": "constant-vus",
+      "vus": 1,
+      "duration": "10s",
+      "description": "Basic functionality verification"
+    }
+  ],
+  "auth": {
+    "type": "none"
+  },
+  "requests": [
+    {
+      "name": "Health Check",
+      "method": "GET",
+      "path": "/get",
+      "description": "Basic GET request test",
+      "checks": [
+        "status is 200",
+        "response time < 1000ms"
+      ]
+    },
+    {
+      "name": "POST Test",
+      "method": "POST",
+      "path": "/post",
+      "description": "Basic POST request test",
+      "body": {
+        "test": "data",
+        "message": "Hello from Strezz"
+      },
+      "checks": [
+        "status is 200",
+        "response time < 1000ms"
+      ]
+    }
+  ],
+  "thresholds": {
+    "http_req_duration": ["p(95)<1000"],
+    "http_req_failed": ["rate<1%"]
+  },
+  "tags": {
+    "environment": "test",
+    "service": "demo"
+  }
+}
